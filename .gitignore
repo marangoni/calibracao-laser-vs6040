@@ -1,0 +1,16 @@
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+
+# Arquivos temporários
+*.tmp
+*.swp
+*~
+
+# Python, caso apareça algum cache local
+__pycache__/
+*.pyc

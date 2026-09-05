@@ -1,429 +1,154 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
-
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <title>
-    Matriz de Calibração Laser
-  </title>
-
-  <link
-    rel="stylesheet"
-    href="style.css?v=0.4.1"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calibração Laser VS6040</title>
+  <link rel="stylesheet" href="style.css?v=0.5.1">
 </head>
-
-
 <body>
-
   <main class="app-shell">
-
     <header class="page-header">
-
-      <div>
-
-        <p class="eyebrow">
-          UbuntuMaker
-        </p>
-
-        <h1>
-          Matriz de Calibração Laser
-        </h1>
-
-        <p class="subtitle">
-          Gere um pacote completo de calibração
-          velocidade × potência para a VISUTEC VS6040
-          utilizando o K40 Whisperer.
-        </p>
-
-      </div>
-
+      <p class="eyebrow">UbuntuMaker</p>
+      <h1>Calibração Laser VS6040</h1>
+      <p class="subtitle">Gere matrizes de corte, gravação vetorial e preenchimento para execução no K40 Whisperer.</p>
     </header>
 
+    <div class="exclusive-warning" role="alert">
+      <strong>Uso exclusivo — VISUTEC VS6040</strong>
+      <span>
+        Este gerador foi configurado especificamente para a VISUTEC VS6040 do laboratório.
+        Não utilize os arquivos NGC em outro modelo de máquina sem revisar velocidades,
+        potências, área útil, origem e comportamento da controladora.
+      </span>
+    </div>
 
     <section class="workspace">
-
-
-      <!-- ================================================== -->
-      <!-- CONFIGURAÇÃO                                       -->
-      <!-- ================================================== -->
-
       <aside class="panel controls-panel">
-
-        <h2>
-          Configuração
-        </h2>
-
+        <h2>Configuração</h2>
 
         <div class="machine-info">
-
-          <strong>
-            VISUTEC VS6040
-          </strong>
-
-          <span>
-            Velocidade máxima de corte utilizada pelo gerador:
-            20 mm/s
-          </span>
-
+          <strong>VISUTEC VS6040</strong>
+          <span id="machineLimitText">Carregando limites...</span>
         </div>
 
+        <label class="field">
+          <span>Tipo de calibração</span>
+          <select id="operation">
+            <option value="cut" selected>Corte</option>
+            <option value="engrave">Gravação</option>
+            <option value="fill">Preenchimento</option>
+          </select>
+        </label>
+
+        <div id="operationInfo" class="operation-info"></div>
+
+        <div id="parameterStatus" class="parameter-status"></div>
 
         <label class="field">
-
-          <span>
-            Material
-          </span>
-
+          <span>Material</span>
           <select id="material">
-
-            <option value="eva">
-              EVA
-            </option>
-
-            <option value="mdf_claro">
-              MDF claro
-            </option>
-
-            <option value="mdf_escuro">
-              MDF escuro
-            </option>
-
-            <option
-              value="papelao"
-              selected
-            >
-              Papelão
-            </option>
-
+            <option value="eva">EVA</option>
+            <option value="mdf_claro">MDF claro</option>
+            <option value="mdf_escuro">MDF escuro</option>
+            <option value="papelao" selected>Papelão</option>
           </select>
-
         </label>
 
-
         <label class="field">
-
-          <span>
-            Espessura
-          </span>
-
+          <span>Espessura</span>
           <div class="input-with-unit">
-
-            <input
-              id="thickness"
-              type="number"
-              min="0.1"
-              max="30"
-              step="0.1"
-              value="3.0"
-            >
-
-            <span>
-              mm
-            </span>
-
+            <input id="thickness" type="number" min="0.1" max="30" step="0.1" value="3.0">
+            <span>mm</span>
           </div>
-
         </label>
-
 
         <label class="field">
-
-          <span>
-            Padrão
-          </span>
-
+          <span>Padrão</span>
           <select id="pattern">
-
-            <option value="quick">
-              Rápido
-            </option>
-
-            <option
-              value="standard"
-              selected
-            >
-              Padrão
-            </option>
-
-            <option value="detailed">
-              Detalhado
-            </option>
-
-            <option value="custom">
-              Personalizado
-            </option>
-
+            <option value="quick">Rápido</option>
+            <option value="standard" selected>Padrão</option>
+            <option value="detailed">Detalhado</option>
+            <option value="custom">Personalizado</option>
           </select>
-
         </label>
 
-
-        <!-- ================================================== -->
-        <!-- PERSONALIZADO                                      -->
-        <!-- ================================================== -->
-
-        <div
-          id="customPanel"
-          class="custom-panel"
-          hidden
-        >
-
+        <div id="customPanel" class="custom-panel" hidden>
           <label class="field">
-
-            <span>
-              Potências (%)
-            </span>
-
-            <input
-              id="customPowers"
-              type="text"
-              placeholder="5, 10, 15, 20, 30"
-            >
-
-            <small>
-              Valores separados por vírgula.
-            </small>
-
+            <span>Potências (%)</span>
+            <input id="customPowers" type="text" placeholder="5, 10, 15, 20, 30">
+            <small>Valores separados por vírgula.</small>
           </label>
 
-
           <label class="field">
-
-            <span>
-              Velocidades de corte (mm/s)
-            </span>
-
-            <input
-              id="customSpeeds"
-              type="text"
-              placeholder="5, 8, 12, 16, 20"
-            >
-
-            <small>
-              Permitido de 0,1 até 20 mm/s para a VS6040.
-            </small>
-
+            <span>Velocidades (mm/s)</span>
+            <input id="customSpeeds" type="text" placeholder="5, 8, 12, 16, 20">
+            <small id="customSpeedHelp">Limite conforme o tipo de calibração.</small>
           </label>
-
         </div>
-
-
-        <!-- ================================================== -->
-        <!-- RESUMO                                             -->
-        <!-- ================================================== -->
 
         <div class="preset-info">
-
           <div>
-
-            <span class="info-label">
-              Faixa de potência
-            </span>
-
-            <strong id="powerRange">
-              5–30%
-            </strong>
-
+            <span class="info-label">Faixa de potência</span>
+            <strong id="powerRange">—</strong>
           </div>
-
-
           <div>
-
-            <span class="info-label">
-              Matriz
-            </span>
-
-            <strong id="matrixSize">
-              5 × 5
-            </strong>
-
+            <span class="info-label">Matriz</span>
+            <strong id="matrixSize">—</strong>
           </div>
-
         </div>
 
+        <div id="powerValues" class="parameter-summary"></div>
+        <div id="speedValues" class="parameter-summary"></div>
+        <div id="message" class="message" role="status" aria-live="polite"></div>
 
-        <div
-          id="powerValues"
-          class="parameter-summary"
-        >
-        </div>
-
-
-        <div
-          id="speedValues"
-          class="parameter-summary"
-        >
-        </div>
-
-
-        <div
-          id="message"
-          class="message"
-          role="status"
-          aria-live="polite"
-        >
-        </div>
-
-
-        <!-- ================================================== -->
-        <!-- DOWNLOAD PRINCIPAL                                 -->
-        <!-- ================================================== -->
-
-        <button
-          id="downloadPackageButton"
-          class="primary-button"
-          type="button"
-        >
+        <button id="downloadPackageButton" class="primary-button" type="button">
           Baixar pacote de calibração (.zip)
         </button>
 
-
-        <button
-          id="downloadSvgButton"
-          class="secondary-button"
-          type="button"
-        >
+        <button id="downloadSvgButton" class="secondary-button" type="button">
           Baixar SVG de referência
         </button>
-
       </aside>
 
-
-      <!-- ================================================== -->
-      <!-- PREVIEW                                            -->
-      <!-- ================================================== -->
-
       <section class="panel preview-panel">
-
-
         <div class="preview-heading">
-
           <div>
-
-            <h2>
-              Padrão final
-            </h2>
-
-            <p id="previewDescription">
-              25 combinações
-            </p>
-
+            <h2 id="previewTitle">Padrão final</h2>
+            <p id="previewDescription">—</p>
           </div>
-
         </div>
-
 
         <div class="legend">
-
-          <span>
-            <i class="swatch cut"></i>
-            Corte
-          </span>
-
-
-          <span>
-            <i class="swatch engrave"></i>
-            Identificação
-          </span>
-
+          <span><i id="testSwatch" class="swatch cut"></i><span id="testLegend">Teste</span></span>
+          <span><i class="swatch engrave"></i>Identificação</span>
         </div>
 
-
-        <div
-          id="preview"
-          class="preview-stage"
-        >
-        </div>
-
-
-        <!-- ================================================== -->
-        <!-- PROCEDIMENTO K40                                   -->
-        <!-- ================================================== -->
+        <div id="preview" class="preview-stage"></div>
 
         <section class="k40-section">
-
-          <h2>
-            Procedimento no K40 Whisperer
-          </h2>
-
+          <h2>Procedimento no K40 Whisperer</h2>
 
           <div class="warning-box">
-
-            <strong>
-              Importante:
-            </strong>
-
-            mantenha o material e a origem da máquina
-            inalterados durante todo o teste.
-
+            <strong>Importante:</strong>
+            mantenha o material e a origem da máquina inalterados durante todo o teste.
+            Estes arquivos são específicos para a VISUTEC VS6040. Em gravação e preenchimento,
+            os parâmetros desta versão são experimentais e precisam ser validados na máquina antes do uso rotineiro.
           </div>
 
-
-          <div
-            id="procedureSteps"
-            class="procedure-steps"
-          >
-          </div>
-
+          <div id="procedureSteps" class="procedure-steps"></div>
         </section>
 
-
-        <!-- ================================================== -->
-        <!-- DOWNLOADS INDIVIDUAIS                              -->
-        <!-- ================================================== -->
-
         <details class="individual-section">
-
-          <summary>
-            Downloads individuais
-          </summary>
-
-
-          <p>
-            Use estes arquivos apenas para testes
-            ou para repetir uma etapa específica.
-          </p>
-
-
-          <div
-            id="individualDownloads"
-            class="individual-downloads"
-          >
-          </div>
-
+          <summary>Downloads individuais</summary>
+          <p>Use estes arquivos para testar ou repetir uma etapa específica.</p>
+          <div id="individualDownloads" class="individual-downloads"></div>
         </details>
-
       </section>
-
     </section>
-
   </main>
 
-
-  <!-- ====================================================== -->
-  <!-- VERSÃO                                                 -->
-  <!-- ====================================================== -->
-
-  <div
-    id="appVersion"
-    class="app-version"
-    title="Versão do gerador carregada"
-  >
-    carregando...
-  </div>
-
-
-  <script src="script.js?v=0.4.1"></script>
-
+  <div id="appVersion" class="app-version" title="Versão do gerador carregada">carregando...</div>
+  <script src="script.js?v=0.5.1"></script>
 </body>
-
 </html>
