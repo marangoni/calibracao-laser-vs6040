@@ -1,0 +1,30 @@
+CALIBRADOR LASER VS6040 - v0.6.0
+
+Arquivos para substituir no repositório calibracao-laser-vs6040:
+- index.html
+- style.css
+- script.js
+
+Novidades:
+- Novo formato "Folha-resumo A5" (210 x 148 mm).
+- Mantida integralmente a "Matriz detalhada".
+- A folha A5 reúne, na mesma peça física:
+  1) gravação vetorial: potência fixa e velocidades variáveis;
+  2) preenchimento vetorial: velocidade fixa e potências variáveis;
+  3) corte: potência fixa e velocidades variáveis.
+- Presets Rápido, Padrão e Detalhado para a folha A5.
+- Campos da folha A5 podem ser ajustados manualmente.
+- O pacote A5 gera 00-identificacao.ngc, arquivo de gravação, arquivos de preenchimento por potência, arquivo de corte, resumo-A5.svg e LEIA-ME.txt.
+- Todos os NGC da folha A5 usam a mesma origem e bounding box de 210 x 148 mm.
+- Potência continua sendo ajustada manualmente no painel da VS6040.
+- Gravação e preenchimento continuam marcados como experimentais.
+- Corte limitado a 20 mm/s.
+- Correção de largura mínima da matriz detalhada para evitar truncamento de cabeçalhos nos padrões menores.
+
+Teste local sugerido:
+python3 -m http.server 8017 --directory /caminho/para/calibracao-laser-vs6040
+
+Depois de validar:
+git add index.html style.css script.js
+git commit -m "Adiciona folha resumo A5 ao calibrador VS6040"
+git push

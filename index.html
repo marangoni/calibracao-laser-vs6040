@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calibração Laser VS6040</title>
-  <link rel="stylesheet" href="style.css?v=0.5.1">
+  <link rel="stylesheet" href="style.css?v=0.6.0">
 </head>
 <body>
   <main class="app-shell">
     <header class="page-header">
       <p class="eyebrow">UbuntuMaker</p>
       <h1>Calibração Laser VS6040</h1>
-      <p class="subtitle">Gere matrizes de corte, gravação vetorial e preenchimento para execução no K40 Whisperer.</p>
+      <p class="subtitle">Gere matrizes detalhadas ou uma folha-resumo A5 com corte, gravação vetorial e preenchimento para execução no K40 Whisperer.</p>
     </header>
 
     <div class="exclusive-warning" role="alert">
@@ -29,21 +29,16 @@
 
         <div class="machine-info">
           <strong>VISUTEC VS6040</strong>
-          <span id="machineLimitText">Carregando limites...</span>
+          <span id="machineLimitText">Carregando configuração...</span>
         </div>
 
         <label class="field">
-          <span>Tipo de calibração</span>
-          <select id="operation">
-            <option value="cut" selected>Corte</option>
-            <option value="engrave">Gravação</option>
-            <option value="fill">Preenchimento</option>
+          <span>Formato de calibração</span>
+          <select id="format">
+            <option value="matrix" selected>Matriz detalhada</option>
+            <option value="summary">Folha-resumo A5</option>
           </select>
         </label>
-
-        <div id="operationInfo" class="operation-info"></div>
-
-        <div id="parameterStatus" class="parameter-status"></div>
 
         <label class="field">
           <span>Material</span>
@@ -63,37 +58,149 @@
           </div>
         </label>
 
-        <label class="field">
-          <span>Padrão</span>
-          <select id="pattern">
-            <option value="quick">Rápido</option>
-            <option value="standard" selected>Padrão</option>
-            <option value="detailed">Detalhado</option>
-            <option value="custom">Personalizado</option>
-          </select>
-        </label>
-
-        <div id="customPanel" class="custom-panel" hidden>
+        <div id="matrixControls">
           <label class="field">
-            <span>Potências (%)</span>
-            <input id="customPowers" type="text" placeholder="5, 10, 15, 20, 30">
-            <small>Valores separados por vírgula.</small>
+            <span>Tipo de calibração</span>
+            <select id="operation">
+              <option value="cut" selected>Corte</option>
+              <option value="engrave">Gravação</option>
+              <option value="fill">Preenchimento</option>
+            </select>
           </label>
 
+          <div id="operationInfo" class="operation-info"></div>
+
           <label class="field">
-            <span>Velocidades (mm/s)</span>
-            <input id="customSpeeds" type="text" placeholder="5, 8, 12, 16, 20">
-            <small id="customSpeedHelp">Limite conforme o tipo de calibração.</small>
+            <span>Padrão</span>
+            <select id="pattern">
+              <option value="quick">Rápido</option>
+              <option value="standard" selected>Padrão</option>
+              <option value="detailed">Detalhado</option>
+              <option value="custom">Personalizado</option>
+            </select>
           </label>
+
+          <div id="customPanel" class="custom-panel" hidden>
+            <label class="field">
+              <span>Potências (%)</span>
+              <input id="customPowers" type="text" placeholder="5, 10, 15, 20, 30">
+              <small>Valores separados por vírgula. Use ponto para casas decimais.</small>
+            </label>
+
+            <label class="field">
+              <span>Velocidades (mm/s)</span>
+              <input id="customSpeeds" type="text" placeholder="5, 8, 12, 16, 20">
+              <small id="customSpeedHelp">Limite conforme o tipo de calibração.</small>
+            </label>
+          </div>
         </div>
+
+        <div id="summaryControls" class="summary-controls" hidden>
+          <label class="field">
+            <span>Preset da folha A5</span>
+            <select id="summaryPreset">
+              <option value="quick">Rápido</option>
+              <option value="standard" selected>Padrão</option>
+              <option value="detailed">Detalhado</option>
+            </select>
+          </label>
+
+          <div class="summary-intro">
+            <strong>Folha única de referência</strong>
+            <span>
+              Mantém em uma única peça A5 as três operações, seguindo a lógica do padrão de laboratório anterior:
+              identificação do material, parâmetro fixo e série comparativa.
+            </span>
+          </div>
+
+          <section class="summary-config-group">
+            <div class="summary-config-heading">
+              <span class="summary-dot blue"></span>
+              <div>
+                <strong>Gravação vetorial</strong>
+                <small>Potência fixa; varia a velocidade.</small>
+              </div>
+            </div>
+
+            <div class="summary-field-grid">
+              <label class="field compact">
+                <span>Potência fixa</span>
+                <div class="input-with-unit">
+                  <input id="summaryEngravePower" type="number" min="1" max="100" step="1">
+                  <span>%</span>
+                </div>
+              </label>
+
+              <label class="field compact wide">
+                <span>Velocidades</span>
+                <input id="summaryEngraveSpeeds" type="text">
+                <small>Até 8 valores; máximo 50 mm/s.</small>
+              </label>
+            </div>
+          </section>
+
+          <section class="summary-config-group">
+            <div class="summary-config-heading">
+              <span class="summary-dot blue"></span>
+              <div>
+                <strong>Preenchimento vetorial</strong>
+                <small>Velocidade fixa; varia a potência.</small>
+              </div>
+            </div>
+
+            <div class="summary-field-grid">
+              <label class="field compact">
+                <span>Velocidade fixa</span>
+                <div class="input-with-unit">
+                  <input id="summaryFillSpeed" type="number" min="0.1" max="50" step="0.1">
+                  <span>mm/s</span>
+                </div>
+              </label>
+
+              <label class="field compact wide">
+                <span>Potências</span>
+                <input id="summaryFillPowers" type="text">
+                <small>Até 8 valores entre 1 e 100%.</small>
+              </label>
+            </div>
+          </section>
+
+          <section class="summary-config-group">
+            <div class="summary-config-heading">
+              <span class="summary-dot red"></span>
+              <div>
+                <strong>Corte</strong>
+                <small>Potência fixa; varia a velocidade.</small>
+              </div>
+            </div>
+
+            <div class="summary-field-grid">
+              <label class="field compact">
+                <span>Potência fixa</span>
+                <div class="input-with-unit">
+                  <input id="summaryCutPower" type="number" min="1" max="100" step="1">
+                  <span>%</span>
+                </div>
+              </label>
+
+              <label class="field compact wide">
+                <span>Velocidades</span>
+                <input id="summaryCutSpeeds" type="text">
+                <small>Até 8 valores; máximo 20 mm/s.</small>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <div id="parameterStatus" class="parameter-status"></div>
 
         <div class="preset-info">
           <div>
-            <span class="info-label">Faixa de potência</span>
+            <span id="powerRangeLabel" class="info-label">Faixa de potência</span>
             <strong id="powerRange">—</strong>
           </div>
           <div>
-            <span class="info-label">Matriz</span>
+            <span id="matrixSizeLabel" class="info-label">Matriz</span>
             <strong id="matrixSize">—</strong>
           </div>
         </div>
@@ -119,8 +226,14 @@
           </div>
         </div>
 
-        <div class="legend">
+        <div id="matrixLegend" class="legend">
           <span><i id="testSwatch" class="swatch cut"></i><span id="testLegend">Teste</span></span>
+          <span><i class="swatch engrave"></i>Identificação</span>
+        </div>
+
+        <div id="summaryLegend" class="legend" hidden>
+          <span><i class="swatch cut"></i>Corte</span>
+          <span><i class="swatch engrave"></i>Gravação e preenchimento</span>
           <span><i class="swatch engrave"></i>Identificação</span>
         </div>
 
@@ -149,6 +262,6 @@
   </main>
 
   <div id="appVersion" class="app-version" title="Versão do gerador carregada">carregando...</div>
-  <script src="script.js?v=0.5.1"></script>
+  <script src="script.js?v=0.6.0"></script>
 </body>
 </html>
