@@ -230,6 +230,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 .swatch { width: 20px; height: 3px; border-radius: 99px; }
 .swatch.cut { background: #ff0000; }
 .swatch.engrave { background: #0000ff; }
+.swatch.raster { background: #000000; }
 
 .preview-stage {
   min-height: 520px;
@@ -355,7 +356,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 }
 
 /* =====================================================
-   v0.6.0 - Folha-resumo A5
+   v0.7.0 - Folha-resumo A5
    ===================================================== */
 
 .summary-controls {
@@ -426,6 +427,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
 .summary-dot.red {
   background: #ff0000;
+}
+
+.summary-dot.black {
+  background: #111111;
 }
 
 .summary-dot.blue {

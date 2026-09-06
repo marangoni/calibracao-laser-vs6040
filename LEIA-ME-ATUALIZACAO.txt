@@ -1,30 +1,73 @@
-CALIBRADOR LASER VS6040 - v0.6.0
+CALIBRADOR LASER VS6040 - v0.7.0
 
-Arquivos para substituir no repositório calibracao-laser-vs6040:
+ALTERACAO PRINCIPAL
+-------------------
+O antigo modo "Preenchimento" por hachura vetorial foi substituido por
+"Gravacao raster", usando o Raster Engrave nativo do K40 Whisperer.
+
+MODOS DA MATRIZ DETALHADA
+-------------------------
+1) Corte
+   - Arquivos NGC.
+   - Potencia ajustada manualmente no painel.
+   - Velocidades controladas automaticamente pelo G-code.
+
+2) Gravacao vetorial
+   - Arquivos NGC.
+   - Potencia ajustada manualmente no painel.
+   - Velocidades controladas automaticamente pelo G-code.
+
+3) Gravacao raster
+   - Areas pretas preenchidas em SVG.
+   - Processamento pelo botao Raster Engrave do K40 Whisperer.
+   - Cada combinacao potencia x velocidade possui um SVG separado.
+   - Potencia: ajustar manualmente no painel da VS6040.
+   - Velocidade: ajustar no K40 Whisperer antes de Raster Engrave.
+   - Halftone (Dither): desligado para estes testes de preto solido.
+   - Invert Raster Color: desligado.
+   - Manter o mesmo Scanline Step durante toda a calibracao e registrar o valor.
+
+PRESETS RASTER EXPERIMENTAIS
+----------------------------
+Rapido:    100 / 180 / 240 mm/s
+Padrao:     80 / 120 / 160 / 200 / 240 mm/s
+Detalhado:  60 / 90 / 120 / 150 / 180 / 210 / 240 mm/s
+
+O limite de 250 mm/s e um limite experimental adotado pelo gerador nesta
+versao; nao deve ser interpretado como limite oficial ou validado da maquina.
+
+FOLHA-RESUMO A5
+----------------
+A folha-resumo passa a usar:
+- Gravacao vetorial por NGC;
+- Gravacao raster por SVG + Raster Engrave;
+- Corte por NGC.
+
+O raster da folha A5 usa velocidade fixa (padrao inicial: 180 mm/s) e
+potencias variaveis. Cada potencia gera um SVG separado para manter a posicao
+correta na folha A5.
+
+A folha A5 deve ser entendida como resumo pos-calibracao: primeiro execute as
+matrizes detalhadas, escolha os parametros e depois gere a folha de referencia.
+
+ALINHAMENTO
+-----------
+Nao mova o material nem altere a origem entre os arquivos. Os SVGs raster sao
+gerados com o mesmo tamanho fisico e com a mesma identificacao vetorial da
+matriz/folha para preservar a referencia geometrica ao carregar cada arquivo.
+
+DEPENDENCIA DO K40 WHISPERER
+----------------------------
+O K40 Whisperer utiliza o Inkscape para preparar a parte raster dos SVGs.
+Confirme que o Inkscape esta instalado e configurado/encontrado pelo K40.
+
+ARQUIVOS DESTA ATUALIZACAO
+--------------------------
 - index.html
 - style.css
 - script.js
+- LEIA-ME-ATUALIZACAO.txt
 
-Novidades:
-- Novo formato "Folha-resumo A5" (210 x 148 mm).
-- Mantida integralmente a "Matriz detalhada".
-- A folha A5 reúne, na mesma peça física:
-  1) gravação vetorial: potência fixa e velocidades variáveis;
-  2) preenchimento vetorial: velocidade fixa e potências variáveis;
-  3) corte: potência fixa e velocidades variáveis.
-- Presets Rápido, Padrão e Detalhado para a folha A5.
-- Campos da folha A5 podem ser ajustados manualmente.
-- O pacote A5 gera 00-identificacao.ngc, arquivo de gravação, arquivos de preenchimento por potência, arquivo de corte, resumo-A5.svg e LEIA-ME.txt.
-- Todos os NGC da folha A5 usam a mesma origem e bounding box de 210 x 148 mm.
-- Potência continua sendo ajustada manualmente no painel da VS6040.
-- Gravação e preenchimento continuam marcados como experimentais.
-- Corte limitado a 20 mm/s.
-- Correção de largura mínima da matriz detalhada para evitar truncamento de cabeçalhos nos padrões menores.
-
-Teste local sugerido:
-python3 -m http.server 8017 --directory /caminho/para/calibracao-laser-vs6040
-
-Depois de validar:
-git add index.html style.css script.js
-git commit -m "Adiciona folha resumo A5 ao calibrador VS6040"
-git push
+VERSAO
+------
+v0.7.0

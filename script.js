@@ -1,11 +1,12 @@
 "use strict";
 
-const APP_VERSION = "0.6.0";
+const APP_VERSION = "0.7.0";
 
 const MACHINE = {
   model: "VISUTEC VS6040",
   maxCutSpeed: 20,
   experimentalVectorSpeedLimit: 50,
+  experimentalRasterSpeedLimit: 250,
   identificationSpeed: 20
 };
 
@@ -23,8 +24,8 @@ const OPERATIONS = {
     }
   },
   engrave: {
-    label: "Gravação",
-    slug: "gravacao",
+    label: "Gravação vetorial",
+    slug: "gravacao_vetorial",
     description: "Gravação vetorial com linhas horizontais, verticais e diagonais para comparar definição e intensidade.",
     speedLimit: MACHINE.experimentalVectorSpeedLimit,
     parameterStatus: "experimental",
@@ -34,16 +35,16 @@ const OPERATIONS = {
       detailed: [10, 15, 20, 25, 30, 40, 50]
     }
   },
-  fill: {
-    label: "Preenchimento",
-    slug: "preenchimento",
-    description: "Preenchimento por hachura vetorial para avaliar tonalidade, uniformidade e profundidade.",
-    speedLimit: MACHINE.experimentalVectorSpeedLimit,
+  raster: {
+    label: "Gravação raster",
+    slug: "gravacao_raster",
+    description: "Áreas preenchidas em preto para execução pelo Raster Engrave nativo do K40 Whisperer. Cada combinação de potência e velocidade é gerada em um SVG separado.",
+    speedLimit: MACHINE.experimentalRasterSpeedLimit,
     parameterStatus: "experimental",
     speeds: {
-      quick: [10, 30, 50],
-      standard: [10, 20, 30, 40, 50],
-      detailed: [10, 15, 20, 25, 30, 40, 50]
+      quick: [100, 180, 240],
+      standard: [80, 120, 160, 200, 240],
+      detailed: [60, 90, 120, 150, 180, 210, 240]
     }
   }
 };
@@ -69,7 +70,7 @@ const MATERIALS = {
         standard: [2, 4, 6, 8, 10],
         detailed: [2, 3, 4, 5, 6, 8, 10]
       },
-      fill: {
+      raster: {
         quick: [2, 6, 10],
         standard: [2, 4, 6, 8, 10],
         detailed: [2, 3, 4, 5, 6, 8, 10]
@@ -89,7 +90,7 @@ const MATERIALS = {
         standard: [5, 10, 15, 20, 25],
         detailed: [5, 8, 10, 12, 15, 20, 25]
       },
-      fill: {
+      raster: {
         quick: [5, 15, 25],
         standard: [5, 10, 15, 20, 25],
         detailed: [5, 8, 10, 12, 15, 20, 25]
@@ -109,7 +110,7 @@ const MATERIALS = {
         standard: [5, 10, 15, 20, 30],
         detailed: [5, 8, 10, 15, 20, 25, 30]
       },
-      fill: {
+      raster: {
         quick: [5, 15, 30],
         standard: [5, 10, 15, 20, 30],
         detailed: [5, 8, 10, 15, 20, 25, 30]
@@ -129,7 +130,7 @@ const MATERIALS = {
         standard: [2, 4, 6, 8, 10],
         detailed: [2, 3, 4, 5, 6, 8, 10]
       },
-      fill: {
+      raster: {
         quick: [2, 6, 10],
         standard: [2, 4, 6, 8, 10],
         detailed: [2, 3, 4, 5, 6, 8, 10]
@@ -162,13 +163,14 @@ const SUMMARY_GEOMETRY = {
   anchorLength: 0.1,
   sectionY: {
     engrave: 43,
-    fill: 81,
+    raster: 81,
     cut: 119
   }
 };
 
 const CUT_COLOR = "#ff0000";
 const ENGRAVE_COLOR = "#0000ff";
+const RASTER_COLOR = "#000000";
 
 const FONT = {
   " ":["00000","00000","00000","00000","00000","00000","00000"],
@@ -226,7 +228,7 @@ const ui = {
   parameterStatus: $("parameterStatus"),
   summaryPreset: $("summaryPreset"),
   summaryEngravePower: $("summaryEngravePower"), summaryEngraveSpeeds: $("summaryEngraveSpeeds"),
-  summaryFillSpeed: $("summaryFillSpeed"), summaryFillPowers: $("summaryFillPowers"),
+  summaryRasterSpeed: $("summaryRasterSpeed"), summaryRasterPowers: $("summaryRasterPowers"),
   summaryCutPower: $("summaryCutPower"), summaryCutSpeeds: $("summaryCutSpeeds"),
   powerRangeLabel: $("powerRangeLabel"), matrixSizeLabel: $("matrixSizeLabel"),
   powerRange: $("powerRange"), matrixSize: $("matrixSize"), powerValues: $("powerValues"), speedValues: $("speedValues"),
@@ -404,28 +406,18 @@ function buildEngraveCellSegments(x, y) {
   ];
 }
 
-function buildFillCellSegments(x, y) {
+function buildRasterCellRect(x, y, size = GEOMETRY.cell) {
   const margin = 1.5;
-  const left = x + margin;
-  const right = x + GEOMETRY.cell - margin;
-  const top = y + margin;
-  const bottom = y + GEOMETRY.cell - margin;
-  const segments = [];
-  let reverse = false;
-
-  for (let yy = top; yy <= bottom + 0.0001; yy += GEOMETRY.hatchSpacing) {
-    segments.push(reverse
-      ? { x1: right, y1: yy, x2: left, y2: yy }
-      : { x1: left, y1: yy, x2: right, y2: yy }
-    );
-    reverse = !reverse;
-  }
-  return segments;
+  return {
+    x: x + margin,
+    y: y + margin,
+    width: size - margin * 2,
+    height: size - margin * 2
+  };
 }
 
 function buildTestSvg(data, layout) {
   const elements = [];
-  const color = data.operationKey === "cut" ? CUT_COLOR : ENGRAVE_COLOR;
 
   data.powers.forEach((power, row) => {
     data.speeds.forEach((speed, column) => {
@@ -433,15 +425,22 @@ function buildTestSvg(data, layout) {
       const y = layout.gridY + row * layout.pitch;
 
       if (data.operationKey === "cut") {
-        elements.push(`<rect x="${x}" y="${y}" width="${GEOMETRY.cell}" height="${GEOMETRY.cell}" fill="none" stroke="${color}" stroke-width="${GEOMETRY.stroke}" data-power="${power}" data-speed="${speed}"/>`);
-      } else {
-        const segments = data.operationKey === "engrave" ? buildEngraveCellSegments(x, y) : buildFillCellSegments(x, y);
-        for (const s of segments) {
-          elements.push(`<line x1="${s.x1}" y1="${s.y1}" x2="${s.x2}" y2="${s.y2}" stroke="${color}" stroke-width="${GEOMETRY.stroke}" stroke-linecap="round" data-power="${power}" data-speed="${speed}"/>`);
-        }
+        elements.push(`<rect x="${x}" y="${y}" width="${GEOMETRY.cell}" height="${GEOMETRY.cell}" fill="none" stroke="${CUT_COLOR}" stroke-width="${GEOMETRY.stroke}" data-power="${power}" data-speed="${speed}"/>`);
+        return;
       }
+
+      if (data.operationKey === "engrave") {
+        for (const segment of buildEngraveCellSegments(x, y)) {
+          elements.push(`<line x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}" stroke="${ENGRAVE_COLOR}" stroke-width="${GEOMETRY.stroke}" stroke-linecap="round" data-power="${power}" data-speed="${speed}"/>`);
+        }
+        return;
+      }
+
+      const rect = buildRasterCellRect(x, y);
+      elements.push(`<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" fill="${RASTER_COLOR}" stroke="none" data-operation="raster" data-power="${power}" data-speed="${speed}"/>`);
     });
   });
+
   return elements.join("\n");
 }
 
@@ -451,12 +450,39 @@ function buildSvg(data, thickness) {
     .map(s => `<line x1="${s.x1}" y1="${s.y1}" x2="${s.x2}" y2="${s.y2}" stroke="${ENGRAVE_COLOR}" stroke-width="${GEOMETRY.stroke}" stroke-linecap="round"/>`)
     .join("\n");
 
+  const desc = data.operationKey === "raster"
+    ? "Referencia visual da matriz. As areas pretas sao Raster Engrave nativo do K40 Whisperer; cada combinacao e executada a partir de um SVG individual. Uso exclusivo VISUTEC VS6040."
+    : "Gerado exclusivamente para VISUTEC VS6040. Parametros de gravacao vetorial sao experimentais nesta versao.";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}mm" height="${layout.height}mm" viewBox="0 0 ${layout.width} ${layout.height}">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${layout.width}mm" height="${layout.height}mm" viewBox="0 0 ${layout.width} ${layout.height}">
   <title>Calibracao ${data.operation.label} - ${data.material.label}</title>
-  <desc>Gerado exclusivamente para VISUTEC VS6040. Gravacao e preenchimento usam parametros experimentais nesta versao.</desc>
+  <desc>${desc}</desc>
   <g id="identificacao">${blueLines}</g>
   <g id="teste">${buildTestSvg(data, layout)}</g>
+</svg>`;
+}
+
+function buildRasterCellSvg(data, thickness, powerIndex, speedIndex) {
+  const layout = getLayout(data);
+  const power = data.powers[powerIndex];
+  const speed = data.speeds[speedIndex];
+  const x = layout.gridX + speedIndex * layout.pitch;
+  const y = layout.gridY + powerIndex * layout.pitch;
+  const rect = buildRasterCellRect(x, y);
+
+  const blueLines = buildIdentificationSegments(data, thickness)
+    .map(segment => `<line x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}" stroke="${ENGRAVE_COLOR}" stroke-width="${GEOMETRY.stroke}" stroke-linecap="round"/>`)
+    .join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${layout.width}mm" height="${layout.height}mm" viewBox="0 0 ${layout.width} ${layout.height}">
+  <title>Raster ${power}% - ${speed} mm/s - ${data.material.label}</title>
+  <desc>VISUTEC VS6040. Ajustar painel para ${power}% e velocidade Raster Engrave para ${speed} mm/s. Halftone e Invert Raster Color devem permanecer desligados para este teste.</desc>
+  <g id="referencia-vetorial">${blueLines}</g>
+  <g id="raster">
+    <rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" fill="${RASTER_COLOR}" stroke="none"/>
+  </g>
 </svg>`;
 }
 
@@ -472,9 +498,12 @@ function ngcHeader(data, thickness, description) {
 
   if (data.operationKey === "cut") {
     warnings.push(`(CORTE: LIMITE ADOTADO PARA ESTA VS6040 = ${MACHINE.maxCutSpeed} mm/s)`);
-  } else {
-    warnings.push(`(PARAMETROS DE ${normalizeAscii(data.operation.label)} SAO EXPERIMENTAIS)`);
+  } else if (data.operationKey === "engrave") {
+    warnings.push("(PARAMETROS DE GRAVACAO VETORIAL SAO EXPERIMENTAIS)");
     warnings.push(`(LIMITE DE ${data.operation.speedLimit} mm/s E UM LIMITE DO GERADOR, NAO UM LIMITE VALIDADO DA MAQUINA)`);
+  } else if (data.operationKey === "raster") {
+    warnings.push("(ESTE NGC CONTEM APENAS A IDENTIFICACAO DA MATRIZ RASTER)");
+    warnings.push("(AS CELULAS RASTER SAO EXECUTADAS PELOS ARQUIVOS SVG COM RASTER ENGRAVE)");
   }
 
   return [
@@ -535,6 +564,10 @@ function addCutCellGcode(lines, x, y, layout, feed) {
 }
 
 function buildPowerNgc(data, thickness, powerIndex) {
+  if (data.operationKey === "raster") {
+    throw new Error("Gravação raster nativa é executada por arquivos SVG no Raster Engrave do K40 Whisperer.");
+  }
+
   const layout = getLayout(data);
   const power = data.powers[powerIndex];
   const lines = ngcHeader(data, thickness, `POTENCIA ${power}% - AJUSTAR NO PAINEL`);
@@ -550,8 +583,7 @@ function buildPowerNgc(data, thickness, powerIndex) {
     if (data.operationKey === "cut") {
       addCutCellGcode(lines, x, y, layout, feed);
     } else {
-      const segments = data.operationKey === "engrave" ? buildEngraveCellSegments(x, y) : buildFillCellSegments(x, y);
-      for (const segment of segments) addSegmentGcode(lines, segment, layout, feed);
+      for (const segment of buildEngraveCellSegments(x, y)) addSegmentGcode(lines, segment, layout, feed);
     }
     lines.push("");
   });
@@ -572,6 +604,11 @@ function powerFilePart(power) {
   return Number.isInteger(number) ? String(number).padStart(2, "0") : String(number).replace(".", "p");
 }
 
+function speedFilePart(speed) {
+  const number = Number(speed);
+  return Number.isInteger(number) ? String(number).padStart(3, "0") : String(number).replace(".", "p");
+}
+
 function buildReadme(data, thickness) {
   const lines = [
     "CALIBRACAO LASER",
@@ -581,9 +618,9 @@ function buildReadme(data, thickness) {
     "============================================================",
     "",
     "Este pacote foi gerado especificamente para a VISUTEC VS6040",
-    "utilizada no laboratorio. Nao utilize estes arquivos NGC em",
-    "outra maquina sem revisar velocidades, potencias, area util,",
-    "origem e comportamento da controladora.",
+    "utilizada no laboratorio. Nao utilize estes arquivos em outra",
+    "maquina sem revisar velocidades, potencias, area util, origem",
+    "e comportamento da controladora.",
     "",
     `Maquina: ${MACHINE.model}`,
     `Tipo: ${data.operation.label}`,
@@ -602,47 +639,55 @@ function buildReadme(data, thickness) {
       "STATUS DOS PARAMETROS",
       "",
       "O modo Corte utiliza a faixa definida especificamente para a VS6040.",
-      "O resultado de corte ainda depende do material, espessura, foco,",
-      "estado do tubo, lente, espelhos e demais condicoes da maquina."
+      "O resultado depende do material, espessura, foco, estado do tubo,",
+      "lente, espelhos e demais condicoes da maquina."
     );
-  } else {
+  } else if (data.operationKey === "engrave") {
     lines.push(
       `Limite experimental adotado pelo gerador: ${data.operation.speedLimit} mm/s`,
       "",
       "STATUS DOS PARAMETROS - EXPERIMENTAL",
       "",
-      `Os presets de ${data.operation.label.toLowerCase()} desta versao ainda precisam`,
-      "ser validados fisicamente na VS6040 antes de uso rotineiro.",
-      `O valor de ${data.operation.speedLimit} mm/s e um limite conservador adotado`,
-      "pelo gerador; nao deve ser interpretado como limite validado da maquina."
+      "Os presets de gravacao vetorial ainda precisam ser validados fisicamente",
+      "na VS6040 antes de uso rotineiro."
     );
-  }
-
-  if (data.operationKey === "fill") {
+  } else {
     lines.push(
+      `Limite experimental adotado pelo gerador para Raster Engrave: ${data.operation.speedLimit} mm/s`,
       "",
-      `Espacamento da hachura vetorial: ${GEOMETRY.hatchSpacing} mm`,
-      "Este modo usa hachura vetorial em G-code; nao e Raster Engrave nativo."
+      "GRAVACAO RASTER NATIVA DO K40 WHISPERER",
+      "",
+      "As areas pretas dos SVGs sao processadas pelo botao Raster Engrave.",
+      "A velocidade de raster e global no K40 Whisperer e a potencia e manual",
+      "no painel da maquina. Por isso cada combinacao possui um SVG proprio.",
+      "Mantenha Halftone (Dither) desligado para estes retangulos pretos solidos.",
+      "Mantenha Invert Raster Color desligado.",
+      "Mantenha o mesmo Scanline Step em todos os ensaios e registre esse valor.",
+      "Nao use Vector Engrave ou Vector Cut nos SVGs das celulas raster."
     );
   }
 
-  lines.push(
-    "",
-    "ORDEM DE EXECUCAO",
-    "",
-    "1. Abra 00-identificacao.ngc.",
+  lines.push("", "ORDEM DE EXECUCAO", "", "1. Abra 00-identificacao.ngc.",
     "   Ajuste uma potencia baixa de gravacao no painel.",
     `   O arquivo de identificacao utiliza ${MACHINE.identificationSpeed} mm/s.`
   );
 
-  data.powers.forEach((power, index) => {
-    const sequence = String(index + 1).padStart(2, "0");
-    lines.push(
-      "",
-      `${index + 2}. Ajuste a potencia do painel para ${power}%.`,
-      `   Execute ${sequence}-pot-${powerFilePart(power)}.ngc.`
-    );
-  });
+  if (data.operationKey === "raster") {
+    let step = 2;
+    data.powers.forEach((power, powerIndex) => {
+      lines.push("", `${step}. Ajuste a potencia do painel para ${power}%.`);
+      data.speeds.forEach((speed, speedIndex) => {
+        const filename = `${String(powerIndex * data.speeds.length + speedIndex + 1).padStart(2, "0")}-pot-${powerFilePart(power)}-vel-${speedFilePart(speed)}mms.svg`;
+        lines.push(`   Abra raster/${filename}, ajuste Raster Engrave para ${speed} mm/s e execute Raster Engrave.`);
+      });
+      step += 1;
+    });
+  } else {
+    data.powers.forEach((power, index) => {
+      const sequence = String(index + 1).padStart(2, "0");
+      lines.push("", `${index + 2}. Ajuste a potencia do painel para ${power}%.`, `   Execute ${sequence}-pot-${powerFilePart(power)}.ngc.`);
+    });
+  }
 
   lines.push(
     "",
@@ -651,7 +696,7 @@ function buildReadme(data, thickness) {
     "- Nao mova o material entre as etapas.",
     "- Nao altere a origem da maquina entre as etapas.",
     "- A potencia e ajustada manualmente no painel da cortadora.",
-    "- Os arquivos NGC controlam automaticamente as velocidades.",
+    data.operationKey === "raster" ? "- A velocidade raster deve ser ajustada no K40 Whisperer antes de cada SVG." : "- Os arquivos NGC controlam automaticamente as velocidades.",
     "- Nunca use este pacote em outra maquina sem revisar os parametros.",
     "- Os presets devem ser confirmados por ensaio no laboratorio.",
     "- Utilize apenas materiais adequados para processamento a laser.",
@@ -663,7 +708,6 @@ function buildReadme(data, thickness) {
 
   return lines.join("\n");
 }
-
 
 function middleValue(values) {
   return values[Math.floor(values.length / 2)];
@@ -680,17 +724,16 @@ function parseSummaryList(text, min, max, label) {
 function getSummaryPresetDefaults(materialKey, presetKey) {
   const material = MATERIALS[materialKey];
   const engravePowers = material.powers.engrave[presetKey];
-  const fillPowers = material.powers.fill[presetKey];
+  const rasterPowers = material.powers.raster[presetKey];
   const cutPowers = material.powers.cut[presetKey];
   const engraveSpeeds = OPERATIONS.engrave.speeds[presetKey];
-  const fillSpeeds = OPERATIONS.fill.speeds[presetKey];
   const cutSpeeds = OPERATIONS.cut.speeds[presetKey];
 
   return {
     engravePower: middleValue(engravePowers),
     engraveSpeeds,
-    fillSpeed: middleValue(fillSpeeds),
-    fillPowers,
+    rasterSpeed: 180,
+    rasterPowers,
     cutPower: Math.max(...cutPowers),
     cutSpeeds
   };
@@ -700,8 +743,8 @@ function initializeSummaryFields() {
   const defaults = getSummaryPresetDefaults(ui.material.value, ui.summaryPreset.value);
   ui.summaryEngravePower.value = defaults.engravePower;
   ui.summaryEngraveSpeeds.value = defaults.engraveSpeeds.join(", ");
-  ui.summaryFillSpeed.value = defaults.fillSpeed;
-  ui.summaryFillPowers.value = defaults.fillPowers.join(", ");
+  ui.summaryRasterSpeed.value = defaults.rasterSpeed;
+  ui.summaryRasterPowers.value = defaults.rasterPowers.join(", ");
   ui.summaryCutPower.value = defaults.cutPower;
   ui.summaryCutSpeeds.value = defaults.cutSpeeds.join(", ");
   summaryInitialized = true;
@@ -711,14 +754,14 @@ function getSummaryData() {
   const material = MATERIALS[ui.material.value];
   const presetKey = ui.summaryPreset.value;
   const engravePower = Number(ui.summaryEngravePower.value);
-  const fillSpeed = Number(ui.summaryFillSpeed.value);
+  const rasterSpeed = Number(ui.summaryRasterSpeed.value);
   const cutPower = Number(ui.summaryCutPower.value);
 
   if (!Number.isFinite(engravePower) || engravePower < 1 || engravePower > 100) {
-    throw new Error("A potência fixa de gravação deve ficar entre 1 e 100%.");
+    throw new Error("A potência fixa de gravação vetorial deve ficar entre 1 e 100%.");
   }
-  if (!Number.isFinite(fillSpeed) || fillSpeed < 0.1 || fillSpeed > MACHINE.experimentalVectorSpeedLimit) {
-    throw new Error(`A velocidade fixa de preenchimento deve ficar entre 0,1 e ${MACHINE.experimentalVectorSpeedLimit} mm/s.`);
+  if (!Number.isFinite(rasterSpeed) || rasterSpeed < 0.1 || rasterSpeed > MACHINE.experimentalRasterSpeedLimit) {
+    throw new Error(`A velocidade fixa de gravação raster deve ficar entre 0,1 e ${MACHINE.experimentalRasterSpeedLimit} mm/s.`);
   }
   if (!Number.isFinite(cutPower) || cutPower < 1 || cutPower > 100) {
     throw new Error("A potência fixa de corte deve ficar entre 1 e 100%.");
@@ -728,14 +771,14 @@ function getSummaryData() {
     ui.summaryEngraveSpeeds.value,
     0.1,
     MACHINE.experimentalVectorSpeedLimit,
-    "velocidade de gravação"
+    "velocidade de gravação vetorial"
   );
 
-  const fillPowers = parseSummaryList(
-    ui.summaryFillPowers.value,
+  const rasterPowers = parseSummaryList(
+    ui.summaryRasterPowers.value,
     1,
     100,
-    "potência de preenchimento"
+    "potência de gravação raster"
   );
 
   const cutSpeeds = parseSummaryList(
@@ -754,9 +797,9 @@ function getSummaryData() {
       power: engravePower,
       speeds: engraveSpeeds
     },
-    fill: {
-      speed: fillSpeed,
-      powers: fillPowers
+    raster: {
+      speed: rasterSpeed,
+      powers: rasterPowers
     },
     cut: {
       power: cutPower,
@@ -808,12 +851,12 @@ function buildSummaryIdentificationSegments(data, thickness) {
     addText(formatNumber(speed), cx, 37, 1.8, "center");
   });
 
-  const fillRow = getSummaryRowGeometry("fill", data.fill.powers.length);
-  addText("PREENCHIMENTO VETORIAL", SUMMARY_GEOMETRY.margin, 67, 2.8);
-  addText(`VEL ${formatNumber(data.fill.speed)}MM/S`, SUMMARY_GEOMETRY.margin, 74, 2.1);
+  const rasterRow = getSummaryRowGeometry("raster", data.raster.powers.length);
+  addText("GRAVACAO RASTER", SUMMARY_GEOMETRY.margin, 67, 2.8);
+  addText(`VEL ${formatNumber(data.raster.speed)}MM/S`, SUMMARY_GEOMETRY.margin, 74, 2.1);
   addText("POT %", 53, 74, 1.8, "right");
-  data.fill.powers.forEach((power, index) => {
-    const cx = fillRow.startX + index * (fillRow.cell + fillRow.gap) + fillRow.cell / 2;
+  data.raster.powers.forEach((power, index) => {
+    const cx = rasterRow.startX + index * (rasterRow.cell + rasterRow.gap) + rasterRow.cell / 2;
     addText(formatNumber(power), cx, 75, 1.8, "center");
   });
 
@@ -826,7 +869,7 @@ function buildSummaryIdentificationSegments(data, thickness) {
     addText(formatNumber(speed), cx, 113, 1.8, "center");
   });
 
-  addText("GRAVACAO E PREENCHIMENTO: PARAMETROS EXPERIMENTAIS", SUMMARY_GEOMETRY.margin, 139, 1.45);
+  addText("GRAVACAO VETORIAL E RASTER: PARAMETROS EXPERIMENTAIS", SUMMARY_GEOMETRY.margin, 139, 1.45);
 
   return segments;
 }
@@ -847,24 +890,14 @@ function buildSummaryEngraveCellSegments(x, y, size) {
   ];
 }
 
-function buildSummaryFillCellSegments(x, y, size) {
+function buildSummaryRasterCellRect(x, y, size) {
   const margin = 1.3;
-  const left = x + margin;
-  const right = x + size - margin;
-  const top = y + margin;
-  const bottom = y + size - margin;
-  const segments = [];
-  let reverse = false;
-
-  for (let yy = top; yy <= bottom + 0.0001; yy += GEOMETRY.hatchSpacing) {
-    segments.push(reverse
-      ? { x1: right, y1: yy, x2: left, y2: yy }
-      : { x1: left, y1: yy, x2: right, y2: yy }
-    );
-    reverse = !reverse;
-  }
-
-  return segments;
+  return {
+    x: x + margin,
+    y: y + margin,
+    width: size - margin * 2,
+    height: size - margin * 2
+  };
 }
 
 function buildSummaryTestSvg(data) {
@@ -875,30 +908,22 @@ function buildSummaryTestSvg(data) {
     const x = engraveRow.startX + index * (engraveRow.cell + engraveRow.gap);
     const y = engraveRow.y;
     for (const segment of buildSummaryEngraveCellSegments(x, y, engraveRow.cell)) {
-      parts.push(
-        `<line x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}" stroke="${ENGRAVE_COLOR}" stroke-width="${SUMMARY_GEOMETRY.stroke}" stroke-linecap="round" data-operation="engrave" data-power="${data.engrave.power}" data-speed="${speed}"/>`
-      );
+      parts.push(`<line x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}" stroke="${ENGRAVE_COLOR}" stroke-width="${SUMMARY_GEOMETRY.stroke}" stroke-linecap="round" data-operation="engrave" data-power="${data.engrave.power}" data-speed="${speed}"/>`);
     }
   });
 
-  const fillRow = getSummaryRowGeometry("fill", data.fill.powers.length);
-  data.fill.powers.forEach((power, index) => {
-    const x = fillRow.startX + index * (fillRow.cell + fillRow.gap);
-    const y = fillRow.y;
-    for (const segment of buildSummaryFillCellSegments(x, y, fillRow.cell)) {
-      parts.push(
-        `<line x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}" stroke="${ENGRAVE_COLOR}" stroke-width="${SUMMARY_GEOMETRY.stroke}" stroke-linecap="round" data-operation="fill" data-power="${power}" data-speed="${data.fill.speed}"/>`
-      );
-    }
+  const rasterRow = getSummaryRowGeometry("raster", data.raster.powers.length);
+  data.raster.powers.forEach((power, index) => {
+    const x = rasterRow.startX + index * (rasterRow.cell + rasterRow.gap);
+    const rect = buildSummaryRasterCellRect(x, rasterRow.y, rasterRow.cell);
+    parts.push(`<rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" fill="${RASTER_COLOR}" stroke="none" data-operation="raster" data-power="${power}" data-speed="${data.raster.speed}"/>`);
   });
 
   const cutRow = getSummaryRowGeometry("cut", data.cut.speeds.length);
   data.cut.speeds.forEach((speed, index) => {
     const x = cutRow.startX + index * (cutRow.cell + cutRow.gap);
     const y = cutRow.y;
-    parts.push(
-      `<rect x="${x}" y="${y}" width="${cutRow.cell}" height="${cutRow.cell}" fill="none" stroke="${CUT_COLOR}" stroke-width="${SUMMARY_GEOMETRY.stroke}" data-operation="cut" data-power="${data.cut.power}" data-speed="${speed}"/>`
-    );
+    parts.push(`<rect x="${x}" y="${y}" width="${cutRow.cell}" height="${cutRow.cell}" fill="none" stroke="${CUT_COLOR}" stroke-width="${SUMMARY_GEOMETRY.stroke}" data-operation="cut" data-power="${data.cut.power}" data-speed="${speed}"/>`);
   });
 
   return parts.join("\n");
@@ -910,15 +935,33 @@ function buildSummarySvg(data, thickness) {
     .join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg"
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1"
      width="${SUMMARY_GEOMETRY.width}mm"
      height="${SUMMARY_GEOMETRY.height}mm"
      viewBox="0 0 ${SUMMARY_GEOMETRY.width} ${SUMMARY_GEOMETRY.height}"
      data-format="summary">
   <title>Folha resumo A5 - ${data.material.label} - ${formatThickness(thickness)} mm</title>
-  <desc>Folha A5 inspirada no padrao de laboratorio anterior, reunindo gravacao vetorial, preenchimento vetorial e corte. Uso exclusivo VISUTEC VS6040.</desc>
+  <desc>Folha A5 reunindo gravacao vetorial, gravacao raster nativa do K40 Whisperer e corte. Uso exclusivo VISUTEC VS6040.</desc>
   <g id="identificacao">${blueLines}</g>
   <g id="testes">${buildSummaryTestSvg(data)}</g>
+</svg>`;
+}
+
+function buildSummaryRasterSvg(data, thickness, powerIndex) {
+  const rasterRow = getSummaryRowGeometry("raster", data.raster.powers.length);
+  const power = data.raster.powers[powerIndex];
+  const x = rasterRow.startX + powerIndex * (rasterRow.cell + rasterRow.gap);
+  const rect = buildSummaryRasterCellRect(x, rasterRow.y, rasterRow.cell);
+  const blueLines = buildSummaryIdentificationSegments(data, thickness)
+    .map(segment => `<line x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}" stroke="${ENGRAVE_COLOR}" stroke-width="${SUMMARY_GEOMETRY.stroke}" stroke-linecap="round"/>`)
+    .join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${SUMMARY_GEOMETRY.width}mm" height="${SUMMARY_GEOMETRY.height}mm" viewBox="0 0 ${SUMMARY_GEOMETRY.width} ${SUMMARY_GEOMETRY.height}">
+  <title>Resumo A5 Raster ${power}% - ${data.raster.speed} mm/s</title>
+  <desc>VISUTEC VS6040. Ajustar painel para ${power}% e Raster Engrave para ${data.raster.speed} mm/s. Halftone e Invert Raster Color desligados.</desc>
+  <g id="referencia-vetorial">${blueLines}</g>
+  <g id="raster"><rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" fill="${RASTER_COLOR}" stroke="none"/></g>
 </svg>`;
 }
 
@@ -929,7 +972,7 @@ function summaryNgcHeader(data, thickness, description) {
     `(ATENCAO: ARQUIVO EXCLUSIVO PARA ${MACHINE.model})`,
     "(NAO UTILIZAR EM OUTRA MAQUINA SEM REVISAO DOS PARAMETROS)",
     "(FOLHA A5: 210 x 148 mm)",
-    "(GRAVACAO E PREENCHIMENTO: PARAMETROS EXPERIMENTAIS)",
+    "(GRAVACAO VETORIAL E RASTER: PARAMETROS EXPERIMENTAIS)",
     `(Material: ${normalizeAscii(data.material.label)})`,
     `(Espessura: ${formatThickness(thickness)} mm)`,
     `(Padrao: ${normalizeAscii(data.patternLabel)})`,
@@ -1013,27 +1056,8 @@ function buildSummaryEngraveNgc(data, thickness) {
   return lines.join("\n");
 }
 
-function buildSummaryFillNgc(data, thickness, powerIndex) {
-  const layout = getSummaryLayout();
-  const row = getSummaryRowGeometry("fill", data.fill.powers.length);
-  const power = data.fill.powers[powerIndex];
-  const x = row.startX + powerIndex * (row.cell + row.gap);
-  const feed = Math.round(data.fill.speed * 60);
-  const lines = summaryNgcHeader(
-    data,
-    thickness,
-    `PREENCHIMENTO VETORIAL - POTENCIA ${power}% - VELOCIDADE ${data.fill.speed} mm/s - AJUSTAR POTENCIA NO PAINEL`
-  );
-
-  addSummaryReferenceAnchors(lines);
-  lines.push(`(Preenchimento - Power ${power}% - Speed ${data.fill.speed} mm/s)`);
-
-  for (const segment of buildSummaryFillCellSegments(x, row.y, row.cell)) {
-    addSegmentGcode(lines, segment, layout, feed);
-  }
-
-  lines.push("", "S0", "M2", "");
-  return lines.join("\n");
+function buildSummaryRasterNotice() {
+  throw new Error("A gravação raster da folha A5 é executada por SVG no Raster Engrave do K40 Whisperer.");
 }
 
 function buildSummaryCutNgc(data, thickness) {
@@ -1079,13 +1103,13 @@ function buildSummaryReadme(data, thickness) {
     `ATENCAO - USO EXCLUSIVO: ${MACHINE.model}`,
     "============================================================",
     "",
-    "Este pacote produz uma unica folha fisica A5 (210 x 148 mm)",
-    "com tres secoes: gravacao vetorial, preenchimento vetorial e corte.",
-    "A organizacao segue a logica do padrao A5 de laboratorio anterior:",
-    "identificacao do material, um parametro fixo e uma serie comparativa.",
+    "Esta folha A5 deve ser usada depois dos ensaios detalhados, como",
+    "registro consolidado dos parametros escolhidos para o material.",
+    "O pacote produz uma unica referencia fisica A5 (210 x 148 mm)",
+    "com gravacao vetorial, gravacao raster nativa e corte.",
     "",
-    "IMPORTANTE: a potencia nao e controlada proporcionalmente pelo G-code.",
-    "A potencia deve ser ajustada manualmente no painel antes de cada arquivo.",
+    "IMPORTANTE: a potencia e ajustada manualmente no painel.",
+    "A velocidade raster e ajustada no K40 Whisperer antes de Raster Engrave.",
     "Todos os arquivos usam a mesma area A5 e a mesma origem.",
     "",
     `Maquina: ${MACHINE.model}`,
@@ -1097,35 +1121,28 @@ function buildSummaryReadme(data, thickness) {
     `Potencia fixa: ${data.engrave.power}%`,
     `Velocidades: ${data.engrave.speeds.join(", ")} mm/s`,
     "",
-    "PREENCHIMENTO VETORIAL",
-    `Velocidade fixa: ${data.fill.speed} mm/s`,
-    `Potencias: ${data.fill.powers.join(", ")}%`,
-    `Espacamento da hachura: ${GEOMETRY.hatchSpacing} mm`,
-    "Este preenchimento e hachura vetorial em G-code; nao e Raster Engrave nativo.",
+    "GRAVACAO RASTER - K40 WHISPERER",
+    `Velocidade fixa: ${data.raster.speed} mm/s`,
+    `Potencias: ${data.raster.powers.join(", ")}%`,
+    "Cada potencia possui um SVG com apenas a celula preta correspondente.",
+    "No K40: Halftone (Dither) OFF; Invert Raster Color OFF.",
+    "Mantenha o mesmo Scanline Step em todas as celulas e registre o valor.",
     "",
     "CORTE",
     `Potencia fixa: ${data.cut.power}%`,
     `Velocidades: ${data.cut.speeds.join(", ")} mm/s`,
     `Limite de corte adotado pelo gerador: ${MACHINE.maxCutSpeed} mm/s`,
     "",
-    "STATUS DOS PARAMETROS",
-    "",
-    "- Corte: faixa configurada especificamente para a VS6040.",
-    "- Gravacao vetorial: parametros experimentais.",
-    "- Preenchimento vetorial: parametros experimentais.",
-    "",
     "ORDEM DE EXECUCAO",
     "",
-    "1. Ajuste uma potencia baixa para identificacao e execute 00-identificacao.ngc.",
+    "1. Ajuste potencia baixa e execute 00-identificacao.ngc.",
     `2. Ajuste o painel para ${data.engrave.power}% e execute 01-gravacao-pot-${powerFilePart(data.engrave.power)}.ngc.`
   ];
 
   let sequence = 2;
-  data.fill.powers.forEach(power => {
+  data.raster.powers.forEach(power => {
     const fileNumber = String(sequence).padStart(2, "0");
-    lines.push(
-      `${sequence + 1}. Ajuste o painel para ${power}% e execute ${fileNumber}-preenchimento-pot-${powerFilePart(power)}.ngc.`
-    );
+    lines.push(`${sequence + 1}. Ajuste o painel para ${power}%, abra ${fileNumber}-raster-pot-${powerFilePart(power)}-vel-${speedFilePart(data.raster.speed)}mms.svg, ajuste Raster Engrave para ${data.raster.speed} mm/s e execute Raster Engrave.`);
     sequence += 1;
   });
 
@@ -1137,7 +1154,8 @@ function buildSummaryReadme(data, thickness) {
     "",
     "- Nao mova o material entre os arquivos.",
     "- Nao altere a origem da maquina entre os arquivos.",
-    "- Confirme a potencia no painel antes de cada etapa.",
+    "- Confirme potencia e velocidade antes de cada etapa.",
+    "- Nos SVGs raster, clique Raster Engrave; nao Vector Engrave/Vector Cut.",
     "- Mantenha exaustao e demais condicoes de seguranca apropriadas ao material.",
     "- Nunca use este pacote em outra maquina sem revisar os parametros.",
     "",
@@ -1164,12 +1182,11 @@ function buildSummaryPackageFiles(data, thickness) {
   ];
 
   let sequence = 2;
-
-  data.fill.powers.forEach((power, index) => {
+  data.raster.powers.forEach((power, index) => {
     const fileNumber = String(sequence).padStart(2, "0");
     files.push({
-      name: `${folder}${fileNumber}-preenchimento-pot-${powerFilePart(power)}.ngc`,
-      data: buildSummaryFillNgc(data, thickness, index)
+      name: `${folder}${fileNumber}-raster-pot-${powerFilePart(power)}-vel-${speedFilePart(data.raster.speed)}mms.svg`,
+      data: buildSummaryRasterSvg(data, thickness, index)
     });
     sequence += 1;
   });
@@ -1203,20 +1220,20 @@ function renderSummaryProcedure(data) {
     },
     {
       title: `Gravação vetorial — potência ${data.engrave.power}%`,
-      detail: `Execute a série de velocidades ${data.engrave.speeds.join(" / ")} mm/s.`
+      detail: `Execute a série de velocidades ${data.engrave.speeds.join(" / ")} mm/s pelo arquivo NGC.`
     }
   ];
 
-  data.fill.powers.forEach(power => {
+  data.raster.powers.forEach(power => {
     steps.push({
-      title: `Preenchimento — potência ${power}%`,
-      detail: `Execute a célula correspondente a ${data.fill.speed} mm/s.`
+      title: `Raster Engrave — potência ${power}%`,
+      detail: `Abra o SVG correspondente, ajuste a velocidade raster para ${data.raster.speed} mm/s e clique Raster Engrave. Halftone e Invert Raster Color desligados.`
     });
   });
 
   steps.push({
     title: `Corte — potência ${data.cut.power}%`,
-    detail: `Execute a série de velocidades ${data.cut.speeds.join(" / ")} mm/s.`
+    detail: `Execute a série de velocidades ${data.cut.speeds.join(" / ")} mm/s pelo arquivo NGC, por último.`
   });
 
   steps.forEach((step, index) => {
@@ -1230,11 +1247,11 @@ function renderSummaryProcedure(data) {
 function renderSummaryIndividualDownloads(data) {
   ui.individualDownloads.innerHTML = "";
 
-  const addButton = (filename, label, builder) => {
+  const addButton = (filename, label, builder, type = "text/plain") => {
     const button = document.createElement("button");
     button.className = "file-button";
     button.innerHTML = `<strong>${filename}</strong><small>${label}</small>`;
-    button.addEventListener("click", () => downloadText(builder(), filename));
+    button.addEventListener("click", () => downloadText(builder(), filename, type));
     ui.individualDownloads.appendChild(button);
   };
 
@@ -1246,17 +1263,18 @@ function renderSummaryIndividualDownloads(data) {
 
   addButton(
     `01-gravacao-pot-${powerFilePart(data.engrave.power)}.ngc`,
-    `gravação • painel em ${data.engrave.power}%`,
+    `gravação vetorial • painel em ${data.engrave.power}%`,
     () => buildSummaryEngraveNgc(currentData, currentThickness)
   );
 
   let sequence = 2;
-  data.fill.powers.forEach((power, index) => {
-    const filename = `${String(sequence).padStart(2, "0")}-preenchimento-pot-${powerFilePart(power)}.ngc`;
+  data.raster.powers.forEach((power, index) => {
+    const filename = `${String(sequence).padStart(2, "0")}-raster-pot-${powerFilePart(power)}-vel-${speedFilePart(data.raster.speed)}mms.svg`;
     addButton(
       filename,
-      `preenchimento • painel em ${power}%`,
-      () => buildSummaryFillNgc(currentData, currentThickness, index)
+      `Raster Engrave • ${data.raster.speed} mm/s • painel em ${power}%`,
+      () => buildSummaryRasterSvg(currentData, currentThickness, index),
+      "image/svg+xml"
     );
     sequence += 1;
   });
@@ -1270,13 +1288,12 @@ function renderSummaryIndividualDownloads(data) {
 
 function updateSummaryUi(data) {
   ui.machineLimitText.textContent =
-    `Folha-resumo A5: corte até ${MACHINE.maxCutSpeed} mm/s; gravação e preenchimento usam faixa experimental de até ${MACHINE.experimentalVectorSpeedLimit} mm/s.`;
+    `Folha-resumo A5: corte até ${MACHINE.maxCutSpeed} mm/s; vetorial até ${MACHINE.experimentalVectorSpeedLimit} mm/s; raster experimental até ${MACHINE.experimentalRasterSpeedLimit} mm/s.`;
 
   ui.parameterStatus.className = "parameter-status experimental";
   ui.parameterStatus.innerHTML = `
     <strong>Folha-resumo A5 • 210 × 148 mm</strong>
-    Reúne gravação vetorial, preenchimento vetorial e corte em uma única peça.
-    Gravação e preenchimento permanecem experimentais; a potência deve ser ajustada manualmente no painel entre os arquivos.
+    Reúne gravação vetorial, Raster Engrave nativo do K40 Whisperer e corte em uma única peça. A folha é um resumo pós-calibração; potência raster é manual no painel e velocidade é ajustada no K40.
   `;
 
   ui.powerRangeLabel.textContent = "Operações";
@@ -1285,10 +1302,10 @@ function updateSummaryUi(data) {
   ui.matrixSize.textContent = "A5 • 210 × 148 mm";
 
   ui.powerValues.innerHTML =
-    `<strong>Potências:</strong> gravação ${formatNumber(data.engrave.power)}% • preenchimento ${data.fill.powers.map(formatNumber).join(" / ")}% • corte ${formatNumber(data.cut.power)}%`;
+    `<strong>Potências:</strong> vetorial ${formatNumber(data.engrave.power)}% • raster ${data.raster.powers.map(formatNumber).join(" / ")}% • corte ${formatNumber(data.cut.power)}%`;
 
   ui.speedValues.innerHTML =
-    `<strong>Velocidades:</strong> gravação ${data.engrave.speeds.map(formatNumber).join(" / ")} • preenchimento ${formatNumber(data.fill.speed)} • corte ${data.cut.speeds.map(formatNumber).join(" / ")} mm/s`;
+    `<strong>Velocidades:</strong> vetorial ${data.engrave.speeds.map(formatNumber).join(" / ")} • raster ${formatNumber(data.raster.speed)} • corte ${data.cut.speeds.map(formatNumber).join(" / ")} mm/s`;
 
   ui.previewTitle.textContent = "Folha-resumo A5";
   ui.previewDescription.textContent =
@@ -1403,13 +1420,27 @@ function buildPackageFiles(data, thickness) {
   const folder = `${packageName}/`;
   const files = [{ name: `${folder}00-identificacao.ngc`, data: buildIdentificationNgc(data, thickness) }];
 
-  data.powers.forEach((power, index) => {
-    const sequence = String(index + 1).padStart(2, "0");
-    files.push({
-      name: `${folder}${sequence}-pot-${powerFilePart(power)}.ngc`,
-      data: buildPowerNgc(data, thickness, index)
+  if (data.operationKey === "raster") {
+    let sequence = 1;
+    data.powers.forEach((power, powerIndex) => {
+      data.speeds.forEach((speed, speedIndex) => {
+        const filename = `${String(sequence).padStart(2, "0")}-pot-${powerFilePart(power)}-vel-${speedFilePart(speed)}mms.svg`;
+        files.push({
+          name: `${folder}raster/${filename}`,
+          data: buildRasterCellSvg(data, thickness, powerIndex, speedIndex)
+        });
+        sequence += 1;
+      });
     });
-  });
+  } else {
+    data.powers.forEach((power, index) => {
+      const sequence = String(index + 1).padStart(2, "0");
+      files.push({
+        name: `${folder}${sequence}-pot-${powerFilePart(power)}.ngc`,
+        data: buildPowerNgc(data, thickness, index)
+      });
+    });
+  }
 
   files.push({ name: `${folder}referencia.svg`, data: buildSvg(data, thickness) });
   files.push({ name: `${folder}LEIA-ME.txt`, data: buildReadme(data, thickness) });
@@ -1436,6 +1467,16 @@ function renderProcedure(data) {
   identification.innerHTML = `<div class="step-number">0</div><div><strong>Identificação</strong><small>Ajuste uma potência baixa no painel e execute 00-identificacao.ngc a ${MACHINE.identificationSpeed} mm/s.</small></div>`;
   ui.procedureSteps.appendChild(identification);
 
+  if (data.operationKey === "raster") {
+    data.powers.forEach((power, index) => {
+      const element = document.createElement("div");
+      element.className = "procedure-step";
+      element.innerHTML = `<div class="step-number">${index + 1}</div><div><strong>Raster Engrave — potência ${power}%</strong><small>Mantenha o painel em ${power}%. Para cada velocidade (${data.speeds.join(" / ")} mm/s), abra o SVG correspondente, ajuste a velocidade no K40 Whisperer e clique Raster Engrave. Halftone e Invert Raster Color desligados.</small></div>`;
+      ui.procedureSteps.appendChild(element);
+    });
+    return;
+  }
+
   data.powers.forEach((power, index) => {
     const element = document.createElement("div");
     element.className = "procedure-step";
@@ -1451,6 +1492,22 @@ function renderIndividualDownloads(data) {
   idButton.innerHTML = `<strong>00-identificacao.ngc</strong><small>identificação a ${MACHINE.identificationSpeed} mm/s</small>`;
   idButton.addEventListener("click", () => downloadText(buildIdentificationNgc(currentData, currentThickness), "00-identificacao.ngc"));
   ui.individualDownloads.appendChild(idButton);
+
+  if (data.operationKey === "raster") {
+    let sequence = 1;
+    data.powers.forEach((power, powerIndex) => {
+      data.speeds.forEach((speed, speedIndex) => {
+        const filename = `${String(sequence).padStart(2, "0")}-pot-${powerFilePart(power)}-vel-${speedFilePart(speed)}mms.svg`;
+        const button = document.createElement("button");
+        button.className = "file-button";
+        button.innerHTML = `<strong>${filename}</strong><small>Raster Engrave • ${speed} mm/s • painel em ${power}%</small>`;
+        button.addEventListener("click", () => downloadText(buildRasterCellSvg(currentData, currentThickness, powerIndex, speedIndex), filename, "image/svg+xml"));
+        ui.individualDownloads.appendChild(button);
+        sequence += 1;
+      });
+    });
+    return;
+  }
 
   data.powers.forEach((power, index) => {
     const sequence = String(index + 1).padStart(2, "0");
@@ -1472,42 +1529,47 @@ function initializeCustom() {
 }
 
 function updateOperationUi(operation) {
-  const isCut = operation.slug === "corte";
+  const operationKey = ui.operation.value;
+  const isCut = operationKey === "cut";
+  const isRaster = operationKey === "raster";
 
   ui.powerRangeLabel.textContent = "Faixa de potência";
   ui.matrixSizeLabel.textContent = "Matriz";
   ui.matrixLegend.hidden = false;
   ui.summaryLegend.hidden = true;
 
-  ui.machineLimitText.textContent = isCut
-    ? `Corte: limite adotado para esta VS6040 = ${operation.speedLimit} mm/s.`
-    : `${operation.label}: faixa experimental do gerador = até ${operation.speedLimit} mm/s.`;
+  if (isCut) {
+    ui.machineLimitText.textContent = `Corte: limite adotado para esta VS6040 = ${operation.speedLimit} mm/s.`;
+  } else if (isRaster) {
+    ui.machineLimitText.textContent = `Raster Engrave: faixa experimental do gerador = até ${operation.speedLimit} mm/s. A velocidade é ajustada no K40 Whisperer.`;
+  } else {
+    ui.machineLimitText.textContent = `Gravação vetorial: faixa experimental do gerador = até ${operation.speedLimit} mm/s.`;
+  }
 
   ui.operationInfo.innerHTML = `<strong>${operation.label}</strong><span>${operation.description}</span>`;
 
   if (isCut) {
     ui.parameterStatus.className = "parameter-status validated";
-    ui.parameterStatus.innerHTML = `
-      <strong>Configuração específica para VS6040</strong>
-      O gerador limita os arquivos de corte a ${operation.speedLimit} mm/s.
-    `;
+    ui.parameterStatus.innerHTML = `<strong>Configuração específica para VS6040</strong>O gerador limita os arquivos de corte a ${operation.speedLimit} mm/s.`;
+  } else if (isRaster) {
+    ui.parameterStatus.className = "parameter-status experimental";
+    ui.parameterStatus.innerHTML = `<strong>Raster Engrave nativo • parâmetros experimentais</strong>As células pretas são SVGs raster. Cada combinação potência × velocidade gera um arquivo separado porque a potência é manual no painel e a velocidade raster é global no K40 Whisperer.`;
   } else {
     ui.parameterStatus.className = "parameter-status experimental";
-    ui.parameterStatus.innerHTML = `
-      <strong>Parâmetros experimentais</strong>
-      Os presets de ${operation.label.toLowerCase()} ainda precisam ser validados fisicamente na VS6040.
-      O teto de ${operation.speedLimit} mm/s é um limite conservador do gerador, não um limite validado da máquina.
-    `;
+    ui.parameterStatus.innerHTML = `<strong>Parâmetros experimentais</strong>Os presets de gravação vetorial ainda precisam ser validados fisicamente na VS6040.`;
   }
 
   ui.customSpeedHelp.textContent = isCut
     ? `Valores entre 0,1 e ${operation.speedLimit} mm/s. Limite aplicado pelo gerador para corte na VS6040.`
-    : `Valores entre 0,1 e ${operation.speedLimit} mm/s. Faixa experimental desta versão.`;
+    : isRaster
+      ? `Valores entre 0,1 e ${operation.speedLimit} mm/s. Cada velocidade exigirá um Raster Engrave separado.`
+      : `Valores entre 0,1 e ${operation.speedLimit} mm/s. Faixa experimental desta versão.`;
 
   ui.previewTitle.textContent = `Padrão de ${operation.label.toLowerCase()}`;
   ui.testLegend.textContent = operation.label;
   ui.testSwatch.classList.toggle("cut", isCut);
-  ui.testSwatch.classList.toggle("engrave", !isCut);
+  ui.testSwatch.classList.toggle("engrave", !isCut && !isRaster);
+  ui.testSwatch.classList.toggle("raster", isRaster);
 }
 
 function clearInvalidState(text) {
@@ -1652,8 +1714,8 @@ ui.summaryPreset.addEventListener("change", () => {
 [
   ui.summaryEngravePower,
   ui.summaryEngraveSpeeds,
-  ui.summaryFillSpeed,
-  ui.summaryFillPowers,
+  ui.summaryRasterSpeed,
+  ui.summaryRasterPowers,
   ui.summaryCutPower,
   ui.summaryCutSpeeds
 ].forEach(control => {
