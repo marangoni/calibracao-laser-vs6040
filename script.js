@@ -1,13 +1,14 @@
 "use strict";
 
-const APP_VERSION = "0.7.0";
+const APP_VERSION = "0.7.1";
 
 const MACHINE = {
   model: "VISUTEC VS6040",
   maxCutSpeed: 20,
   experimentalVectorSpeedLimit: 50,
   experimentalRasterSpeedLimit: 250,
-  identificationSpeed: 20
+  identificationSpeed: 20,
+  identificationVectorSpeed: 50
 };
 
 const OPERATIONS = {
@@ -463,6 +464,26 @@ function buildSvg(data, thickness) {
 </svg>`;
 }
 
+function buildIdentificationSvg(data, thickness) {
+  const layout = getLayout(data);
+  const blueLines = buildIdentificationSegments(data, thickness)
+    .map(segment => `<line x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}" stroke="${ENGRAVE_COLOR}" stroke-width="${GEOMETRY.stroke}" stroke-linecap="round"/>`)
+    .join("\n");
+
+  const anchors = `
+    <line x1="0" y1="0" x2="${GEOMETRY.anchorLength}" y2="0" stroke="${ENGRAVE_COLOR}" stroke-width="${GEOMETRY.stroke}"/>
+    <line x1="${layout.width}" y1="${layout.height}" x2="${layout.width - GEOMETRY.anchorLength}" y2="${layout.height}" stroke="${ENGRAVE_COLOR}" stroke-width="${GEOMETRY.stroke}"/>`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${layout.width}mm" height="${layout.height}mm" viewBox="0 0 ${layout.width} ${layout.height}">
+  <title>Identificacao - ${data.operation.label} - ${data.material.label}</title>
+  <desc>Identificacao vetorial azul para Vector Engrave no K40 Whisperer. Uso exclusivo VISUTEC VS6040. Velocidade sugerida: ${MACHINE.identificationVectorSpeed} mm/s.</desc>
+  <g id="ancoras-referencia">${anchors}
+  </g>
+  <g id="identificacao">${blueLines}</g>
+</svg>`;
+}
+
 function buildRasterCellSvg(data, thickness, powerIndex, speedIndex) {
   const layout = getLayout(data);
   const power = data.powers[powerIndex];
@@ -667,9 +688,9 @@ function buildReadme(data, thickness) {
     );
   }
 
-  lines.push("", "ORDEM DE EXECUCAO", "", "1. Abra 00-identificacao.ngc.",
+  lines.push("", "ORDEM DE EXECUCAO", "", "1. Abra 00-identificacao.svg.",
     "   Ajuste uma potencia baixa de gravacao no painel.",
-    `   O arquivo de identificacao utiliza ${MACHINE.identificationSpeed} mm/s.`
+    `   No K40 Whisperer, ajuste Vector Engrave para cerca de ${MACHINE.identificationVectorSpeed} mm/s e execute Vector Engrave.`
   );
 
   if (data.operationKey === "raster") {
@@ -947,6 +968,25 @@ function buildSummarySvg(data, thickness) {
 </svg>`;
 }
 
+function buildSummaryIdentificationSvg(data, thickness) {
+  const blueLines = buildSummaryIdentificationSegments(data, thickness)
+    .map(segment => `<line x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}" stroke="${ENGRAVE_COLOR}" stroke-width="${SUMMARY_GEOMETRY.stroke}" stroke-linecap="round"/>`)
+    .join("\n");
+
+  const anchors = `
+    <line x1="0" y1="0" x2="${SUMMARY_GEOMETRY.anchorLength}" y2="0" stroke="${ENGRAVE_COLOR}" stroke-width="${SUMMARY_GEOMETRY.stroke}"/>
+    <line x1="${SUMMARY_GEOMETRY.width}" y1="${SUMMARY_GEOMETRY.height}" x2="${SUMMARY_GEOMETRY.width - SUMMARY_GEOMETRY.anchorLength}" y2="${SUMMARY_GEOMETRY.height}" stroke="${ENGRAVE_COLOR}" stroke-width="${SUMMARY_GEOMETRY.stroke}"/>`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${SUMMARY_GEOMETRY.width}mm" height="${SUMMARY_GEOMETRY.height}mm" viewBox="0 0 ${SUMMARY_GEOMETRY.width} ${SUMMARY_GEOMETRY.height}">
+  <title>Identificacao - Folha resumo A5 - ${data.material.label}</title>
+  <desc>Identificacao vetorial azul da folha A5 para Vector Engrave no K40 Whisperer. Uso exclusivo VISUTEC VS6040. Velocidade sugerida: ${MACHINE.identificationVectorSpeed} mm/s.</desc>
+  <g id="ancoras-referencia">${anchors}
+  </g>
+  <g id="identificacao">${blueLines}</g>
+</svg>`;
+}
+
 function buildSummaryRasterSvg(data, thickness, powerIndex) {
   const rasterRow = getSummaryRowGeometry("raster", data.raster.powers.length);
   const power = data.raster.powers[powerIndex];
@@ -1135,7 +1175,7 @@ function buildSummaryReadme(data, thickness) {
     "",
     "ORDEM DE EXECUCAO",
     "",
-    "1. Ajuste potencia baixa e execute 00-identificacao.ngc.",
+    `1. Abra 00-identificacao.svg, ajuste potencia baixa e configure Vector Engrave para cerca de ${MACHINE.identificationVectorSpeed} mm/s. Execute Vector Engrave.`,
     `2. Ajuste o painel para ${data.engrave.power}% e execute 01-gravacao-pot-${powerFilePart(data.engrave.power)}.ngc.`
   ];
 
@@ -1172,8 +1212,8 @@ function buildSummaryPackageFiles(data, thickness) {
   const folder = `${packageName}/`;
   const files = [
     {
-      name: `${folder}00-identificacao.ngc`,
-      data: buildSummaryIdentificationNgc(data, thickness)
+      name: `${folder}00-identificacao.svg`,
+      data: buildSummaryIdentificationSvg(data, thickness)
     },
     {
       name: `${folder}01-gravacao-pot-${powerFilePart(data.engrave.power)}.ngc`,
@@ -1216,7 +1256,7 @@ function renderSummaryProcedure(data) {
   const steps = [
     {
       title: "Identificação",
-      detail: `Ajuste uma potência baixa no painel e execute 00-identificacao.ngc a ${MACHINE.identificationSpeed} mm/s.`
+      detail: `Abra 00-identificacao.svg, ajuste uma potência baixa no painel, configure Vector Engrave para cerca de ${MACHINE.identificationVectorSpeed} mm/s e execute Vector Engrave.`
     },
     {
       title: `Gravação vetorial — potência ${data.engrave.power}%`,
@@ -1256,9 +1296,10 @@ function renderSummaryIndividualDownloads(data) {
   };
 
   addButton(
-    "00-identificacao.ngc",
-    `identificação • ${MACHINE.identificationSpeed} mm/s`,
-    () => buildSummaryIdentificationNgc(currentData, currentThickness)
+    "00-identificacao.svg",
+    `identificação • Vector Engrave • sugestão ${MACHINE.identificationVectorSpeed} mm/s`,
+    () => buildSummaryIdentificationSvg(currentData, currentThickness),
+    "image/svg+xml"
   );
 
   addButton(
@@ -1418,7 +1459,7 @@ function createZip(files) {
 function buildPackageFiles(data, thickness) {
   const packageName = getPackageName(data, thickness);
   const folder = `${packageName}/`;
-  const files = [{ name: `${folder}00-identificacao.ngc`, data: buildIdentificationNgc(data, thickness) }];
+  const files = [{ name: `${folder}00-identificacao.svg`, data: buildIdentificationSvg(data, thickness) }];
 
   if (data.operationKey === "raster") {
     let sequence = 1;
@@ -1464,7 +1505,7 @@ function renderProcedure(data) {
   ui.procedureSteps.innerHTML = "";
   const identification = document.createElement("div");
   identification.className = "procedure-step";
-  identification.innerHTML = `<div class="step-number">0</div><div><strong>Identificação</strong><small>Ajuste uma potência baixa no painel e execute 00-identificacao.ngc a ${MACHINE.identificationSpeed} mm/s.</small></div>`;
+  identification.innerHTML = `<div class="step-number">0</div><div><strong>Identificação</strong><small>Abra 00-identificacao.svg, ajuste uma potência baixa no painel, configure Vector Engrave para cerca de ${MACHINE.identificationVectorSpeed} mm/s e execute Vector Engrave.</small></div>`;
   ui.procedureSteps.appendChild(identification);
 
   if (data.operationKey === "raster") {
@@ -1489,8 +1530,8 @@ function renderIndividualDownloads(data) {
   ui.individualDownloads.innerHTML = "";
   const idButton = document.createElement("button");
   idButton.className = "file-button";
-  idButton.innerHTML = `<strong>00-identificacao.ngc</strong><small>identificação a ${MACHINE.identificationSpeed} mm/s</small>`;
-  idButton.addEventListener("click", () => downloadText(buildIdentificationNgc(currentData, currentThickness), "00-identificacao.ngc"));
+  idButton.innerHTML = `<strong>00-identificacao.svg</strong><small>Vector Engrave • sugestão ${MACHINE.identificationVectorSpeed} mm/s</small>`;
+  idButton.addEventListener("click", () => downloadText(buildIdentificationSvg(currentData, currentThickness), "00-identificacao.svg", "image/svg+xml"));
   ui.individualDownloads.appendChild(idButton);
 
   if (data.operationKey === "raster") {

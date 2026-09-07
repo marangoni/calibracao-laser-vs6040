@@ -1,65 +1,57 @@
-CALIBRADOR LASER VS6040 - v0.7.0
+CALIBRADOR LASER VS6040 - v0.7.1
 
 ALTERACAO PRINCIPAL
 -------------------
-O antigo modo "Preenchimento" por hachura vetorial foi substituido por
-"Gravacao raster", usando o Raster Engrave nativo do K40 Whisperer.
+A identificacao deixou de ser gerada em NGC. Agora o pacote cria:
 
-MODOS DA MATRIZ DETALHADA
--------------------------
-1) Corte
-   - Arquivos NGC.
-   - Potencia ajustada manualmente no painel.
-   - Velocidades controladas automaticamente pelo G-code.
+00-identificacao.svg
 
-2) Gravacao vetorial
-   - Arquivos NGC.
-   - Potencia ajustada manualmente no painel.
-   - Velocidades controladas automaticamente pelo G-code.
+A identificacao usa vetores azuis e deve ser executada no K40 Whisperer com
+Vector Engrave. Como a velocidade e definida no proprio K40, o procedimento
+e bem mais rapido do que a identificacao anterior por NGC fragmentado.
 
-3) Gravacao raster
-   - Areas pretas preenchidas em SVG.
-   - Processamento pelo botao Raster Engrave do K40 Whisperer.
-   - Cada combinacao potencia x velocidade possui um SVG separado.
-   - Potencia: ajustar manualmente no painel da VS6040.
-   - Velocidade: ajustar no K40 Whisperer antes de Raster Engrave.
-   - Halftone (Dither): desligado para estes testes de preto solido.
-   - Invert Raster Color: desligado.
-   - Manter o mesmo Scanline Step durante toda a calibracao e registrar o valor.
-
-PRESETS RASTER EXPERIMENTAIS
-----------------------------
-Rapido:    100 / 180 / 240 mm/s
-Padrao:     80 / 120 / 160 / 200 / 240 mm/s
-Detalhado:  60 / 90 / 120 / 150 / 180 / 210 / 240 mm/s
-
-O limite de 250 mm/s e um limite experimental adotado pelo gerador nesta
-versao; nao deve ser interpretado como limite oficial ou validado da maquina.
-
-FOLHA-RESUMO A5
-----------------
-A folha-resumo passa a usar:
-- Gravacao vetorial por NGC;
-- Gravacao raster por SVG + Raster Engrave;
-- Corte por NGC.
-
-O raster da folha A5 usa velocidade fixa (padrao inicial: 180 mm/s) e
-potencias variaveis. Cada potencia gera um SVG separado para manter a posicao
-correta na folha A5.
-
-A folha A5 deve ser entendida como resumo pos-calibracao: primeiro execute as
-matrizes detalhadas, escolha os parametros e depois gere a folha de referencia.
+VELOCIDADE DE IDENTIFICACAO
+---------------------------
+O gerador sugere inicialmente 50 mm/s para Vector Engrave, com potencia baixa
+ajustada manualmente no painel. Esse valor e uma referencia operacional e deve
+ser adequado ao material e ao resultado desejado.
 
 ALINHAMENTO
 -----------
-Nao mova o material nem altere a origem entre os arquivos. Os SVGs raster sao
-gerados com o mesmo tamanho fisico e com a mesma identificacao vetorial da
-matriz/folha para preservar a referencia geometrica ao carregar cada arquivo.
+O SVG de identificacao usa exatamente as mesmas dimensoes da matriz e inclui
+duas micromarcas azuis de referencia nos extremos da area. Elas mantem o mesmo
+bounding box usado pelos arquivos NGC e pelos SVGs raster.
 
-DEPENDENCIA DO K40 WHISPERER
-----------------------------
-O K40 Whisperer utiliza o Inkscape para preparar a parte raster dos SVGs.
-Confirme que o Inkscape esta instalado e configurado/encontrado pelo K40.
+ARQUITETURA DOS ARQUIVOS
+------------------------
+1) Identificacao
+   - SVG azul.
+   - Abrir no K40 Whisperer.
+   - Executar com Vector Engrave.
+
+2) Corte
+   - NGC.
+   - A potencia e manual no painel.
+   - As velocidades continuam sendo controladas automaticamente pelo G-code.
+
+3) Gravacao vetorial dos testes
+   - NGC.
+   - A potencia e manual no painel.
+   - As velocidades continuam sendo controladas automaticamente pelo G-code.
+
+4) Gravacao raster
+   - SVG preto preenchido.
+   - Executar com Raster Engrave no K40 Whisperer.
+   - Cada combinacao potencia x velocidade possui seu proprio SVG.
+
+FOLHA-RESUMO A5
+----------------
+A folha A5 tambem passa a usar 00-identificacao.svg com Vector Engrave.
+As etapas de gravacao vetorial, raster e corte permanecem como na v0.7.0.
+
+IMPORTANTE
+----------
+Nao mova o material nem altere a origem entre identificacao e testes.
 
 ARQUIVOS DESTA ATUALIZACAO
 --------------------------
@@ -70,4 +62,4 @@ ARQUIVOS DESTA ATUALIZACAO
 
 VERSAO
 ------
-v0.7.0
+v0.7.1
